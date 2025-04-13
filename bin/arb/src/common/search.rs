@@ -81,7 +81,7 @@ where
     let three = if let Ok(v) = INP::try_from(3) {
         v
     } else {
-        unreachable!("Can't convert 2 to INP type")
+        unreachable!("Can't convert 3 to INP type")
     };
 
     // phi = (1.0 + 5.0_f64.sqrt()) / 2.0;
@@ -109,6 +109,7 @@ where
     let mut left = min;
     let mut right = max;
 
+    // 计算初始的mid_left, mid_right以及目标函数值
     let (mut max_in, mut max_f, mut max_out) = {
         let (fl, out_l) = goal.evaluate(left, additional_ctx).await;
         let (fr, out_r) = goal.evaluate(right, additional_ctx).await;
@@ -119,18 +120,24 @@ where
         }
     };
 
+    // 缓存 mid_left 和 mid_right 的计算
     let delta = c(right - left);
     let mut mid_left = right - delta;
     let mut mid_right = left + delta;
+
+    // 如果mid_right <= mid_left，重新设置mid_right
     if mid_right <= mid_left {
         mid_right = (mid_left + one).min(right);
     }
+
+    // 缓存目标函数评估结果
     let (mut fl, mut out_left) = goal.evaluate(mid_left, additional_ctx).await;
     if fl > max_f {
         max_f = fl;
         max_in = mid_left;
         max_out = out_left;
     }
+
     let (mut fr, mut out_right) = goal.evaluate(mid_right, additional_ctx).await;
     if fr > max_f {
         max_f = fr;
@@ -147,6 +154,7 @@ where
             mid_left = mid_right;
             mid_right = left + c(right - left);
             fl = fr;
+            // 只重新计算一次mid_right的目标函数
             (fr, out_right) = goal.evaluate(mid_right, additional_ctx).await;
             if fr > max_f {
                 max_f = fr;
@@ -161,6 +169,7 @@ where
                     mid_right = mid_left;
                     mid_left = temp;
                     fr = fl;
+                    // 只重新计算一次mid_left的目标函数
                     (fl, out_left) = goal.evaluate(mid_left, additional_ctx).await;
                     if fl > max_f {
                         max_f = fl;
@@ -170,6 +179,7 @@ where
                 }
                 Ordering::Equal => {
                     mid_right = (temp + one).min(right);
+                    // 只重新计算一次mid_right的目标函数
                     (fr, out_right) = goal.evaluate(mid_right, additional_ctx).await;
                     if fr > max_f {
                         max_f = fr;
@@ -179,6 +189,7 @@ where
                 }
                 Ordering::Greater => {
                     mid_right = temp;
+                    // 只重新计算一次mid_right的目标函数
                     (fr, out_right) = goal.evaluate(mid_right, additional_ctx).await;
                     if fr > max_f {
                         max_f = fr;
@@ -187,10 +198,10 @@ where
                     }
                 }
             }
-        };
+        }
     }
 
-    // Check the inner points, skip the boundaries because we already checked
+    // 检查内点，跳过边界点
     for i in 1..=2 {
         let i = if let Ok(v) = INP::try_from(i) {
             v + left
@@ -200,6 +211,7 @@ where
         if i >= right {
             break;
         }
+        // 只重新计算一次目标函数
         let (f_mid, out_mid) = goal.evaluate(i, additional_ctx).await;
         if f_mid > max_f {
             max_f = f_mid;
